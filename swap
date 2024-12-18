@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Swap App</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+</head>
+<body>
+    <h1>DeFi Token Swap</h1>
+    <button id="connect-wallet">Connect Wallet</button>
+    
+    <div>
+        <h3>From Token</h3>
+        <input type="text" id="fromAmount" placeholder="Amount">
+        <input type="text" id="fromToken" placeholder="Token Address (e.g., USDT)">
+    </div>
+
+    <div>
+        <h3>To Token</h3>
+        <input type="text" id="toAmount" placeholder="Amount">
+        <input type="text" id="toToken" placeholder="Token Address (e.g., ETH)">
+    </div>
+
+    <button id="swap">Swap</button>
+
+    <script src="app.js"></script>
+</body>
+</html>
+let web3;
+let userAccount;
+
+const connectWallet = async () => {
+    if (window.ethereum) {
+        try {
+            // Request access to the user's Ethereum accounts
+            await window.ethereum.request({ method: "eth_requestAccounts" });
+            web3 = new Web3(window.ethereum);
+            const accounts = await web3.eth.getAccounts();
+            userAccount = accounts[0];
+            document.getElementById('connect-wallet').innerText = 'Wallet Connected';
+        } catch (error) {
+            console.error("User denied account access");
+        }
+    } else {
+        alert("Please install MetaMask!");
+    }
+};
+
+// Swap function (simplified)
+const swapTokens = async () => {
+    const fromToken = document.getElementById('fromToken').value;
+    const toToken = document.getElementById('toToken').value;
+    const fromAmount = document.getElementById('fromAmount').value;
+    const toAmount = document.getElementById('toAmount').value;
+
+    if (!web3) {
+        alert("Please connect your wallet first.");
+        return;
+    }
+
+    // Example swap interaction with Uniswap-like DEX
+    const uniswapRouterAddress = "0x5C69bEe701ef814a2B6a3EDD1CE3c1c8a69B22a2"; // Uniswap V2 router address (example)
+    const uniswapRouterABI = [
+        // ABI snippet for the swapExactTokensForTokens function
+        {
+            "inputs": [
+                { "internalType": "uint256", "name": "amountIn", "type": "uint256" },
+                { "internalType": "uint256", "name": "amountOutMin", "type": "uint256" },
+                { "internalType": "address[]", "name": "path", "type": "address[]" },
+                { "internalType": "address", "name": "to", "type": "address" },
+                { "internalType": "uint256", "name": "deadline", "type": "uint256" }
+            ],
+            "name": "swapExactTokensForTokens",
+            "outputs": [
+                { "internalType": "uint256[]", "name": "", "type": "uint256[]" }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ];
+
+    const router = new web3.eth.Contract(uniswapRouterABI, uniswapRouterAddress);
+
+    const path = [fromToken, toToken];
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes deadline
+
+    // Approve token transfer for the swap
+    const tokenContract = new web3.eth.Contract([
+        {
+            "constant": false,
+            "inputs": [
+                { "name": "spender", "type": "address" },
+                { "name": "amount", "type": "uint256" }
+            ],
+            "name": "approve",
+            "outputs": [{ "name": "", "type": "bool" }],
+            "type": "function"
+        }
+    ], fromToken);
+
+    const fromAmountInWei = web3.utils.toWei(fromAmount, 'ether');
+    await tokenContract.methods.approve(uniswapRouterAddress, fromAmountInWei).send({ from: userAccount });
+
+    // Execute the swap
+    await router.methods.swapExactTokensForTokens(
+        fromAmountInWei, 
+        0,  // Set slippage tolerance
+        path, 
+        userAccount, 
+        deadline
+    ).send({ from: userAccount });
+
+    alert("Swap successful!");
+};
+
+document.getElementById('connect-wallet').addEventListener('click', connectWallet);
+document.getElementById('swap').addEventListener('click', swapTokens);
